@@ -1,6 +1,6 @@
 const ServicePessoa = require("../services/pessoa");
 
-const service = new ServicePessoa
+const service = new ServicePessoa();
 
 class ControllerPessoa {
     PegarTodos(req, res) {
