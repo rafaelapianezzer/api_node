@@ -1,28 +1,35 @@
 const user = require("./../model/user");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt")
+
+const secretKey = "minhasenha";
+const salt = 10;
 
 class ServiceUser {
-    async FindAll(){
-        return user.findAll();
+    async FindAll(transaction){
+        return user.findAll({ transaction });
     } 
 
-    async FindById(id){
-        return  user.findByPk(id);
+    async FindById(id, transaction){
+        return  user.findByPk(id, { transaction });
     } 
 
-    async Create(email, password){
+    async Create(email, password, transaction){
         if (!email){
             throw new Error("Favor informar email")
         } else if (!password){
             throw new Error("Favor informar senha")
         }
 
-        await user.create({ 
-            email, password
-         });
+        const hasPass =  await bcrypt.hash(password, salt)
+
+        return user.create({
+            email, password: hasPass
+        }, { transaction })
     } 
 
-    async Update(id, email, password){
-        const oldUser = await this.FindById(id)
+    async Update(id, email, password, transaction){
+        const oldUser = await this.FindById(id, transaction)
 
         if (!email){
             throw new Error("Favor informar email")
@@ -30,18 +37,40 @@ class ServiceUser {
             throw new Error("Favor informar senha")
         }
         
-        oldUser.email = email
-        oldUser.password = password
+        oldUser.email = email || oldUser.email
+        oldUser.password = password ? await bcrypt.hash(password, salt) : oldUser.password
 
-        oldUser.save()
+        oldUser.save({ transaction })
 
         return oldUser
     } 
 
-    async Delete(id){
-       const user = await this.FindById(id)
+    async Delete(id, transaction){
+       const user = await this.FindById(id, transaction)
        user.destroy()
     } 
+
+    async Login(email, password) {
+        if (!email){
+            throw new Error("Favor informar email")
+        } else if (!password){
+            throw new Error("Favor informar senha")
+        }
+
+        const currentUser = await user.findOne({ where: { email } })
+
+        if(!currentUser){
+            throw new Error("Email ou senha inválidos")
+        }
+
+        const verify = await bcrypt.compare(password, currentUser.password)
+
+        if(verify){
+            return jwt.sign({ id: currentUser.id }, secretKey, { expiresIn: 60 * 60 })
+        }
+
+        throw new Error("Email ou senha inválidos")
+    }
 }
 
 module.exports = new ServiceUser();
